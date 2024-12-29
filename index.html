@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HW1 - 星球旋轉</title>
+    <style>
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        button {
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button id="increasemoonspeed">Increase Moon Speed</button>
+        <button id="decreasemoonspeed">Decrease Moon Speed</button>
+        <br>
+        <button id="increaseearthspeed">Increase Earth Speed</button>
+        <button id="decreaseearthspeed">Decrease Earth Speed</button>
+        <br>
+        <button id="moveUp">Move All Up</button>
+        <button id="moveDown">Move All Down</button>
+        <button id="moveLeft">Move All Left</button>
+        <button id="moveRight">Move All Right</button>
+        <button id="startScaling">Start/Stop Scaling</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from './three.module.js';
+        import { OrbitControls } from './OrbitControls.js';
+
+        let camera, scene, renderer, controls;
+        let sun, earth, moon;
+        let moonspeed = 0.05, earthspeed = 0.01;
+        let angle = 0, angle2 = 0;
+        let fixedHats = [];
+        let scalingEnabled = false;
+
+        init();
+        animate();
+
+        function init() {
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 500;
+
+            // Scene
+            scene = new THREE.Scene();
+
+            // Sun
+            const sunGeometry = createHatGeometry(80, 80, 8.0);
+            const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xF28500, wireframe: true });
+            sun = new THREE.Mesh(sunGeometry, sunMaterial);
+            scene.add(sun);
+
+            // Earth
+            const earthGeometry = createHatGeometry(70, 70, 8.0);
+            const earthMaterial = new THREE.MeshBasicMaterial({ color: 0x11AD42, wireframe: true });
+            earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            scene.add(earth);
+
+            // Moon
+            const moonGeometry = createHatGeometry(50, 50, 8.0);
+            const moonMaterial = new THREE.MeshBasicMaterial({ color: 0x444444, wireframe: true });
+            moon = new THREE.Mesh(moonGeometry, moonMaterial);
+            scene.add(moon);
+
+            // Fixed Hats
+            addFixedHats();
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000);
+            document.body.appendChild(renderer.domElement);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+
+            // Button Events
+            document.getElementById("increasemoonspeed").onclick = () => { moonspeed = Math.min(moonspeed + 0.005, 0.2); };
+            document.getElementById("decreasemoonspeed").onclick = () => { moonspeed = Math.max(moonspeed - 0.005, 0); };
+            document.getElementById("increaseearthspeed").onclick = () => { earthspeed = Math.min(earthspeed + 0.001, 0.04); };
+            document.getElementById("decreaseearthspeed").onclick = () => { earthspeed = Math.max(earthspeed - 0.001, 0); };
+
+            document.getElementById("moveUp").onclick = () => moveHats(0, 10);
+            document.getElementById("moveDown").onclick = () => moveHats(0, -10);
+            document.getElementById("moveLeft").onclick = () => moveHats(-10, 0);
+            document.getElementById("moveRight").onclick = () => moveHats(10, 0);
+            document.getElementById("startScaling").onclick = () => { scalingEnabled = !scalingEnabled; };
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            render();
+            controls.update();
+        }
+
+        function render() {
+            angle += earthspeed;
+            angle2 += moonspeed;
+
+            // Earth rotation and orbit
+            earth.rotation.y += 0.01;
+            earth.position.set(
+                200 * Math.cos(angle),
+                200 * Math.sin(angle),
+                0
+            );
+
+            // Moon rotation and orbit
+            moon.rotation.y += 0.01;
+            moon.position.set(
+                earth.position.x + 50 * Math.cos(angle2),
+                earth.position.y + 50 * Math.sin(angle2),
+                0
+            );
+
+            sun.rotation.y += 0.01; // Sun rotation
+
+            if (scalingEnabled) {
+                animateScalingHats();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function createHatGeometry(nRows = 50, nColumns = 50, peakHeight = 1.0) {
+            const vertices = [];
+            const indices = [];
+
+            for (let i = 0; i < nRows; i++) {
+                const x = Math.PI * (4 * i / nRows - 2.0);
+                for (let j = 0; j < nColumns; j++) {
+                    const y = Math.PI * (4 * j / nColumns - 2.0);
+                    const r = Math.sqrt(x * x + y * y);
+                    const z = r ? peakHeight * Math.sin(r) / r : peakHeight;
+                    vertices.push(x, z, y);
+                }
+            }
+
+            for (let i = 0; i < nRows - 1; i++) {
+                for (let j = 0; j < nColumns - 1; j++) {
+                    const a = i * nColumns + j;
+                    const b = (i + 1) * nColumns + j;
+                    const c = b + 1;
+                    const d = a + 1;
+
+                    indices.push(a, b, d);
+                    indices.push(b, c, d);
+                }
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+
+            return geometry;
+        }
+
+        function addFixedHats() {
+            const hatPositions = [
+                { x: -200, y: 0, z: 0 },
+                { x: 200, y: 0, z: 0 },
+                { x: 0, y: 200, z: 0 },
+                { x: 0, y: -200, z: 0 }
+            ];
+
+            hatPositions.forEach(pos => {
+                const hatGeometry = createHatGeometry(30, 30, 6.0);
+                const hatMaterial = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff, wireframe: true });
+                const hat = new THREE.Mesh(hatGeometry, hatMaterial);
+                hat.position.set(pos.x, pos.y, pos.z);
+                fixedHats.push(hat);
+                scene.add(hat);
+            });
+        }
+
+        function moveHats(deltaX, deltaY) {
+            fixedHats.forEach(hat => {
+                hat.position.x += deltaX;
+                hat.position.y += deltaY;
+            });
+        }
+
+        function animateScalingHats() {
+            const time = performance.now() * 0.001;
+            fixedHats.forEach(hat => {
+                const scale = Math.abs(Math.sin(time)) * 1.5 + 1;
+                hat.scale.set(scale, scale, scale);
+            });
+        }
+    </script>
+</body>
+</html>
